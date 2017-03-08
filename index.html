@@ -24,21 +24,125 @@
         </script>
     </head>
 
-    <body>
-        <div class="reveal">
-            <div class="slides">
-                <section data-markdown=""
-                         data-separator="^====+$"
-                         data-separator-vertical="^----+$"
-                         data-notes="^Note:">
-                <script type="text/template">
+<body>
+<div class="reveal">
+<div class="slides">
+<section data-markdown=""
+data-separator="^====+$"
+data-separator-vertical="^----+$"
+data-notes="^Note:">
+<script type="text/template">
 
 ## Expression Templates Everywhere with C++14 and Yap
 ### Zach Laine, C++Now 2017
 
-==============================================================================
+====================
 
-## TODO
+## Outline
+- Expression Template Primer
+- Introducing Yap
+- Lessons Learned
+
+====================
+
+## Part 0
+### Expression Templates
+
+Why use expression templates?
+- Optimization
+- Expressiveness
+
+----
+
+Example 1: Linear algebra
+
+TODO
+
+----
+
+Example 2: Auto-differentiation
+
+TODO
+
+----
+
+How do expression templates work?
+
+Expressions are captured as objects, transformed, and evaluated.
+
+TODO
+
+----
+
+## The state of the art
+
+TODO (hand implementations and Proto)
+
+====================
+
+## Part 1
+### Introducing Yap
+
+----
+
+## Structure of Yap
+
+TODO: Expand these!
+
+- Functions that operate on expression trees that model the Expression
+  concept.
+- A reference template that models ExpressionTemplate.
+- Facilities for easily creating custom ExpressionTemplates.
+- Customization points that can be user-overridden to create implicit
+  transformations.
+- Easy-to-use custom explicit transformations via transform().
+- Expression tree semantics as close to those of builtin C++ expressions as
+  possible.
+
+----
+
+## Use Cases
+
+TODO
+
+----
+
+## Some Technicalities of Use
+
+TODO
+
+----
+
+## Comparison to Boost.Proto
+
+TODO
+
+====================
+
+## Part 2
+### Lessons learned
+
+----
+
+## Experience Using constexpr if
+
+TODO
+
+----
+
+## Pluses And Minuses of Customization Points
+
+TODO
+
+----
+
+## Explicit vs. Implicit Customization Techniques
+
+TODO
+
+====================
+
+## Questions?
 
 <span class="fragment fade-in">
 https://github.com/tzlaine/yap <br>
