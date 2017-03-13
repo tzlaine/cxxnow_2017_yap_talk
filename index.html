@@ -48,29 +48,148 @@ data-notes="^Note:">
 ## Part 0
 ### Expression Templates
 
+----
+
 Why use expression templates?
+
 - Optimization
+<!-- .element: class="fragment" data-fragment-index="1" -->
 - Expressiveness
+<!-- .element: class="fragment" data-fragment-index="2" -->
 
 ----
 
-Example 1: Linear algebra
+Example 1: Optimizing linear algebra
 
-TODO
+From the Eigen documentation:
+
+```cpp
+VectorXf a(50), b(50), c(50), d(50);
+// fill in values ...
+a = 3*b + 4*c + 5*d;
+```
+
+The naive implementation produces three temporaries, with three allocations,
+and (re)-reads every element of each temporary.
 
 ----
 
-Example 2: Auto-differentiation
+One could hand-write this only to read each value once, and to create no
+temporaries:
 
-TODO
+```cpp
+for(int i = 0; i < 50; ++i)
+  a[i] = 3*b[i] + 4*c[i] + 5*d[i];
+```
+
+Eigen does this, and additionally generates SIMD code where possible.  The
+use of SIMD indicates that this is not just sugar.
+
+----
+
+Example 2: Making auto-differentiation code more expressive
+
+----
+
+```cpp
+//f(x1,x2,x3) = -5*x1+sin(10)*x1+10*x2-x3/6
+PNode* v5 = create_param_node(-5);
+PNode* v10 = create_param_node(10);
+PNode* v6 = create_param_node(6);
+VNode*	x1 = create_var_node();
+VNode*	x2 = create_var_node();
+VNode*	x3 = create_var_node();
+
+OPNode* op1 = create_binary_op_node(OP_TIMES,v5,x1);   //op1 = v5*x1
+OPNode* op2 = create_uary_op_node(OP_SIN,v10);         //op2 = sin(v10)
+OPNode* op3 = create_binary_op_node(OP_TIMES,op2,x1);  //op3 = op2*x1
+OPNode* op4 = create_binary_op_node(OP_PLUS,op1,op3);  //op4 = op1 + op3
+OPNode*	op5 = create_binary_op_node(OP_TIMES,v10,x2);  //op5 = v10*x2
+OPNode* op6 = create_binary_op_node(OP_PLUS,op4,op5);  //op6 = op4+op5
+OPNode* op7 = create_binary_op_node(OP_DIVID,x3,v6);   //op7 = x3/v6
+OPNode* op8 = create_binary_op_node(OP_MINUS,op6,op7); //op8 = op6 - op7
+x1->val = -1.9;
+x2->val = 2;
+x3->val = 5./6.;
+list.push_back(x1);
+list.push_back(x2);
+list.push_back(x3);
+```
+
+----
+
+```cpp
+//f(x1,x2,x3) = -5*x1+sin(10)*x1+10*x2-x3/6
+using namespace autodiff_placeholders;
+to_auto_diff_node(
+    -5 * 1_p + sin_(10) * 1_p + 10 * 2_p - 3_p / 6,
+    list,
+    -1.9,
+    2,
+    5./6.
+);
+```
+
+This has the same effect, but is easy to read and write.
 
 ----
 
 How do expression templates work?
 
 Expressions are captured as objects, transformed, and evaluated.
+<!-- .element: class="fragment" data-fragment-index="1" -->
 
-TODO
+----
+
+### Capturing an Expression
+
+```cpp
+auto expr = 1_p + 3;
+```
+
+The type of this expression is:
+<!-- .element: class="fragment" data-fragment-index="1" -->
+
+```cpp
+expression<
+    yap::expr_kind::plus,
+    hana::tuple<
+        expression<
+            yap::expr_kind::terminal,
+            hana::tuple<yap::placeholder<1ll> >
+        >,
+        expression<
+            yap::expr_kind::terminal,
+            hana::tuple<int>
+        >
+    >
+>
+```
+<!-- .element: class="fragment" data-fragment-index="1" -->
+
+----
+
+`yap::print(expr)` produces:
+
+```
+expr<+>
+    term<yap::placeholder<1ll>>[=1]
+    term<int>[=3]
+```
+
+----
+
+Using the captured expression, we can transform it:
+```cpp
+auto transformed_expr = yap::transform(expr, some_transform);
+```
+
+and/or evaluate it:
+<!-- .element: class="fragment" data-fragment-index="1" -->
+```cpp
+std::cout << yap::evaluate(expr, 5); // prints "8"
+```
+<!-- .element: class="fragment" data-fragment-index="1" -->
 
 ----
 
