@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
         <title>C++ metaprogramming: evolution and future directions</title>
-        <meta name="author" content="Louis Dionne">
+        <meta name="author" content="Zach Laine">
 
         <link rel="stylesheet" href="css/reveal.css">
         <link rel="stylesheet" href="css/theme/league.css" id="theme">
@@ -24,14 +24,14 @@
         </script>
     </head>
 
-<body>
-<div class="reveal">
-<div class="slides">
-<section data-markdown=""
-data-separator="^====+$"
-data-separator-vertical="^----+$"
-data-notes="^Note:">
-<script type="text/template">
+    <body>
+        <div class="reveal">
+            <div class="slides">
+                <section data-markdown=""
+                         data-separator="^====+$"
+                         data-separator-vertical="^----+$"
+                         data-notes="^Note:">
+                <script type="text/template">
 
 ## Expression Templates Everywhere with C++14 and Yap
 ### Zach Laine, C++Now 2017
@@ -151,14 +151,14 @@ The type of this expression is:
 <!-- .element: class="fragment" data-fragment-index="1" -->
 
 ```cpp
-expression<
+my_expr<
     yap::expr_kind::plus,
     hana::tuple<
-        expression<
+        my_expr<
             yap::expr_kind::terminal,
             hana::tuple<yap::placeholder<1ll> >
         >,
-        expression<
+        my_expr<
             yap::expr_kind::terminal,
             hana::tuple<int>
         >
