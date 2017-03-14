@@ -193,9 +193,26 @@ std::cout << yap::evaluate(expr, 5); // prints "8"
 
 ----
 
-## The state of the art
+## The State of the Art
 
-TODO (hand implementations and Proto)
+----
+
+Option 1: Hand-rolled implementation
+
+This is what almost all expression template libraries do today.
+<!-- .element: class="fragment" data-fragment-index="1" -->
+
+Option 2: Boost.Proto
+<!-- .element: class="fragment" data-fragment-index="2" -->
+
+Used in Boost fairly extensively; lots of other examples exist.
+<!-- .element: class="fragment" data-fragment-index="3" -->
+
+Option 3: Give up (don't use expression templates)
+<!-- .element: class="fragment" data-fragment-index="4" -->
+
+This is the most common result.
+<!-- .element: class="fragment" data-fragment-index="5" -->
 
 ====================
 
@@ -204,19 +221,170 @@ TODO (hand implementations and Proto)
 
 ----
 
-## Structure of Yap
+## Design Goals
 
-TODO: Expand these!
+1. Make expression templates easy to use.
+<!-- .element: class="fragment" data-fragment-index="1" -->
+2. Mimic built-in expression behavior wherever possible (see #1).
+<!-- .element: class="fragment" data-fragment-index="2" -->
+3. Never require implicit operations/evaluations.
+<!-- .element: class="fragment" data-fragment-index="3" -->
 
-- Functions that operate on expression trees that model the Expression
-  concept.
-- A reference template that models ExpressionTemplate.
-- Facilities for easily creating custom ExpressionTemplates.
-- Customization points that can be user-overridden to create implicit
-  transformations.
-- Easy-to-use custom explicit transformations via transform().
-- Expression tree semantics as close to those of builtin C++ expressions as
-  possible.
+----
+
+## The Structure of Yap
+
+----
+
+## The Expression Concept
+
+----
+
+First, there is an enumeration `expr_kind` that contains all the different kinds of
+Yap expressions:
+
+- Expression-references (expr_ref)
+<!-- .element: class="fragment" data-fragment-index="1" --> 
+- Terminals ("leaf nodes")
+<!-- .element: class="fragment" data-fragment-index="2" --> 
+- The overloadable operators (+, -=, [], etc.)
+<!-- .element: class="fragment" data-fragment-index="3" --> 
+- Ternary-operator analogue (if_else)
+<!-- .element: class="fragment" data-fragment-index="4" --> 
+- The call operator
+<!-- .element: class="fragment" data-fragment-index="5" --> 
+
+Each expr_kind enumerator has a fixed arity in [1, 3], except for the call
+expr_kind.
+<!-- .element: class="fragment" data-fragment-index="6" --> 
+
+----
+
+## The Expression Concept
+
+`E` is a type that models `Expression`; `e` is an object of type `E`; and
+`Tuple` is an instantiation of `boost::hana::tuple`.
+
+| Expression     | Type       | Description                | Notes                            |
+| -------------- |:----------:|:--------------------------:|:--------------------------------:|
+| `E::kind`      |`expr_kind` | Kind of expression `E` is. | Compile-time constant.           |
+| `e.elements`   |`Tuple`     | Child expressions of `e`   | Elements appropriate to `E::kind`. |
+
+----
+
+## The ExpressionTemplate Concept
+
+A template models `ExpressionTemplate` if it, when instantiated with an
+`expr_kind` and an appropriate tuple, forms an `Expression`.
+
+----
+
+## Yap Features
+
+----
+
+1. Algorithms that operate on expression trees that model the Expression
+concept.
+
+```cpp
+template <typename Expr, typename ...T>
+decltype(auto) evaluate (Expr && expr, T && ... t);
+```
+<!-- .element: class="fragment" data-fragment-index="1" -->
+
+Evaluates expr based on built-in evaluation of the operators used (if any),
+with user-defined evaluations via customization points.
+<!-- .element: class="fragment" data-fragment-index="1" -->
+
+----
+
+```cpp
+template <typename Expr, typename Transform>
+auto transform(Expr && expr, Transform && transform);
+```
+
+Takes an expression and returns something user-defined.  This may be an
+evaluation of `expr` (e.g. an `int`) or an `Expression`.
+
+That bears repeating.
+<!-- .element: class="fragment" data-fragment-index="1" -->
+
+A call to transform() may evaluate the expression.
+<!-- .element: class="fragment" data-fragment-index="2" -->
+
+----
+
+There are also many functions that return the nth value from an `Expression`'s
+tuple, using a naming scheme and typesafety that is kind-specific:
+
+- `left()` and `right()` operate only on binary expressions
+- `callable()` and `argument()` operate only on call expressions
+- etc.
+
+```cpp
+auto expr = x + 1;
+auto left = yap::left(expr); // Ok.
+auto fn = yap::callable(expr); // Error; expr is not a call-expression.
+```
+
+----
+
+There is a reference template `yap::expression` that models
+ExpressionTemplate.
+
+It provides en overload for every operator, if_else, etc.
+<!-- .element: class="fragment" data-fragment-index="1" -->
+
+It is useful for prototyping or quick-and-dirty uses of expression templates.
+<!-- .element: class="fragment" data-fragment-index="2" -->
+
+----
+
+Yap provides facilities for easily creating custom ExpressionTemplates:
+
+```cpp
+template <boost::yap::expr_kind Kind, typename Tuple>
+struct lazy_vector_expr
+{
+    using this_type = lazy_vector_expr<Kind, Tuple>;
+
+    static const boost::yap::expr_kind kind = Kind;
+
+    Tuple elements;
+
+    BOOST_YAP_USER_BINARY_OPERATOR_MEMBER(plus, this_type, ::lazy_vector_expr)
+    BOOST_YAP_USER_BINARY_OPERATOR_MEMBER(minus, this_type, ::lazy_vector_expr)
+
+    // Note that this does not return an expression; it is greedily evaluated.
+    auto operator[] (std::size_t n) const;
+};
+```
+
+----
+
+Yap has customization points that can be user-overridden to create implicit
+evaluations and transformations.
+
+```cpp
+namespace user {
+
+    struct number
+    {
+        double value;
+    };
+
+    // User-defined binary-plus!  With weird semantics!
+    template <typename A, typename B>
+    inline auto eval_plus (A a, B b)
+    { return number{a.value - b.value}; }
+
+}
+
+// ...
+
+auto expr = yap::make_terminal(user::number{1.0}) + user::number{1.0};
+std::cout << yap::evaluate(expr).value; // prints 0.0
+```
 
 ----
 
@@ -240,6 +408,8 @@ TODO
 
 ## Part 2
 ### Lessons learned
+
+TODO: expr_kind is better than a tag type because of constexpr if.
 
 ----
 
