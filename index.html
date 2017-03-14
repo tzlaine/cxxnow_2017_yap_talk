@@ -69,7 +69,7 @@ VectorXf a(50), b(50), c(50), d(50);
 a = 3*b + 4*c + 5*d;
 ```
 
-The naive implementation produces three temporaries, with three allocations,
+The naive implementation produces five temporaries, with three allocations,
 and (re)-reads every element of each temporary.
 
 ----
@@ -225,7 +225,7 @@ This is the most common result.
 
 1. Make expression templates easy to use.
 <!-- .element: class="fragment" data-fragment-index="1" -->
-2. Mimic built-in expression behavior wherever possible (see #1).
+2. Mimic the behavior built-in expression wherever possible (see #1).
 <!-- .element: class="fragment" data-fragment-index="2" -->
 3. Never require implicit operations/evaluations.
 <!-- .element: class="fragment" data-fragment-index="3" -->
@@ -283,8 +283,7 @@ A template models `ExpressionTemplate` if it, when instantiated with an
 
 ----
 
-1. Algorithms that operate on expression trees that model the Expression
-concept.
+Algorithms that operate on expression trees that model the Expression concept.
 
 ```cpp
 template <typename Expr, typename ...T>
@@ -300,10 +299,10 @@ with user-defined evaluations via customization points.
 
 ```cpp
 template <typename Expr, typename Transform>
-auto transform(Expr && expr, Transform && transform);
+decltype(auto) transform (Expr && expr, Transform && transform);
 ```
 
-Takes an expression and returns something user-defined.  This may be an
+Takes an Expression and returns something user-defined.  This may be an
 evaluation of `expr` (e.g. an `int`) or an `Expression`.
 
 That bears repeating.
@@ -314,8 +313,9 @@ A call to transform() may evaluate the expression.
 
 ----
 
-There are also many functions that return the nth value from an `Expression`'s
-tuple, using a naming scheme and typesafety that is kind-specific:
+There are also many functions that return the nth value from an
+`Expression`'s tuple, using a naming scheme and typesafety that is
+kind-specific:
 
 - `left()` and `right()` operate only on binary expressions
 - `callable()` and `argument()` operate only on call expressions
@@ -340,7 +340,7 @@ It is useful for prototyping or quick-and-dirty uses of expression templates.
 
 ----
 
-Yap provides facilities for easily creating custom ExpressionTemplates:
+Yap provides macros for easily creating custom ExpressionTemplates:
 
 ```cpp
 template <boost::yap::expr_kind Kind, typename Tuple>
@@ -395,6 +395,10 @@ TODO
 ----
 
 ## Some Technicalities of Use
+
+- expr_ref
+- lifetime or rvalues
+- evaluating transform
 
 TODO
 
