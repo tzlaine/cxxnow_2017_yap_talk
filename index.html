@@ -263,7 +263,7 @@ expr_kind.
 ## The Expression Concept
 
 `E` is a type that models `Expression`; `e` is an object of type `E`; and
-`Tuple` is an instantiation of `boost::hana::tuple`.
+`Tuple` is an instantiation of `hana::tuple`.
 
 | Expression     | Type       | Description                | Notes                            |
 | -------------- |:----------:|:--------------------------:|:--------------------------------:|
@@ -343,12 +343,12 @@ It is useful for prototyping or quick-and-dirty uses of expression templates.
 Yap provides macros for easily creating custom ExpressionTemplates:
 
 ```cpp
-template <boost::yap::expr_kind Kind, typename Tuple>
+template <yap::expr_kind Kind, typename Tuple>
 struct lazy_vector_expr
 {
     using this_type = lazy_vector_expr<Kind, Tuple>;
 
-    static const boost::yap::expr_kind kind = Kind;
+    static const yap::expr_kind kind = Kind;
 
     Tuple elements;
 
@@ -390,15 +390,438 @@ std::cout << yap::evaluate(expr).value; // prints 0.0
 
 ## Use Cases
 
-TODO
+----
+
+### Case 0: Hello, world!
+
+```cpp
+#include <boost/yap/expression.hpp>
+
+#include <iostream>
+
+
+int main ()
+{
+    evaluate(yap::make_terminal(std::cout) << "Hello" << ',' << " world!\n");
+
+    return 0;
+}
+```
+
+This uses `yap::expression`, and so is probably cheating.
+
+----
+
+### Case 1: A simple calculator
+
+```cpp
+#include <boost/yap/expression.hpp>
+
+#include <iostream>
+
+
+int main ()
+{
+    using namespace yap::literals;
+
+    // Displays "5"
+    std::cout << evaluate( 1_p + 2.0, 3.0 ) << std::endl;
+
+    // Displays "6"
+    std::cout << evaluate( 1_p * 2_p, 3.0, 2.0 ) << std::endl;
+
+    // Displays "0.5"
+    std::cout << evaluate( (1_p - 2_p) / 2_p, 3.0, 2.0 ) << std::endl;
+
+    return 0;
+}
+```
+
+----
+
+### Case 2: Adding a simple arity-check to our simple calculator
+
+```cpp
+    auto expr_1 = 1_p + 2.0;
+    auto expr_1_fn = [expr_1](auto &&... args) {
+        auto const arity = yap::transform(expr_1, get_arity{});
+        static_assert(arity.value == sizeof...(args),
+                      "Called with wrong number of args.");
+        return evaluate(expr_1, args...);
+    };
+
+    auto expr_2 = 1_p * 2_p;
+    auto expr_2_fn = [expr_2](auto &&... args) {
+        auto const arity = yap::transform(expr_2, get_arity{});
+        static_assert(arity.value == sizeof...(args),
+                      "Called with wrong number of args.");
+        return evaluate(expr_2, args...);
+    };
+
+    auto expr_3 = (1_p - 2_p) / 2_p;
+    auto expr_3_fn = [expr_3](auto &&... args) {
+        auto const arity = yap::transform(expr_3, get_arity{});
+        static_assert(arity.value == sizeof...(args),
+                      "Called with wrong number of args.");
+        return evaluate(expr_3, args...);
+    };
+```
+
+----
+
+```cpp
+    // Displays "5"
+    std::cout << expr_1_fn(3.0) << std::endl;
+
+    // Displays "6"
+    std::cout << expr_2_fn(3.0, 2.0) << std::endl;
+
+    // Displays "0.5"
+    std::cout << expr_3_fn(3.0, 2.0) << std::endl;
+
+    // Static-asserts with "Called with wrong number of args."
+    //std::cout << expr_3_fn(3.0) << std::endl;
+
+    // Static-asserts with "Called with wrong number of args."
+    //std::cout << expr_3_fn(3.0, 2.0, 1.0) << std::endl;
+```
+
+----
+
+```cpp
+struct get_arity {
+    template <long long I>
+    hana::llong<I> operator() (yap::terminal_tag, yap::placeholder<I>)
+    { return hana::llong_c<I>; }
+
+    template <typename T>
+    auto operator() (yap::terminal_tag, T &&)
+    {
+        using namespace hana::literals; return 0_c;
+    }
+
+    template <typename Expr>
+    auto operator() (Expr const & expr)
+    {
+        return hana::maximum(hana::transform(
+            expr.elements,
+            [](auto const & element) {
+                return yap::transform(element, get_arity{});
+            }
+        ));
+    }
+};
+```
+
+----
+
+The `get_arity` Transform doesn't produce an Expression, and it does not have
+to. Transforms may produce Expressions or arbitrary values. They may also have
+arbitrary side effects, and may be stateful.
+
+----
+
+### Case 3: That thing from before
+
+Remember how Eigen elimiated temporaries from an assignment to an expression?
+
+```cpp
+int main ()
+{
+    lazy_vector v1{std::vector<double>(4, 1.0)};
+    lazy_vector v2{std::vector<double>(4, 2.0)};
+    lazy_vector v3{std::vector<double>(4, 3.0)};
+
+    double d1 = (v2 + v3)[2];
+    std::cout << d1 << "\n";
+
+    v1 += v2 - v3;
+    std::cout << '{' << v1[0] << ',' << v1[1]
+              << ',' << v1[2] << ',' << v1[3] << '}' << "\n";
+
+    // This expression is disallowed because it does not conform to the
+    // implicit grammar.  operator+= is only defined on terminals, not
+    // arbitrary expressions.
+    // (v2 + v3) += v1;
+
+    return 0;
+}
+```
+
+----
+
+```cpp
+// A custom expression template that defines lazy + and - operators that
+// produce expressions, and an eager [] operator that returns the nth element
+// of the expression.
+template <yap::expr_kind Kind, typename Tuple>
+struct lazy_vector_expr
+{
+    using this_type = lazy_vector_expr<Kind, Tuple>;
+
+    static const yap::expr_kind kind = Kind;
+
+    Tuple elements;
+
+    BOOST_YAP_USER_BINARY_OPERATOR_MEMBER(plus, this_type, ::lazy_vector_expr)
+    BOOST_YAP_USER_BINARY_OPERATOR_MEMBER(minus, this_type, ::lazy_vector_expr)
+
+    // Note that this does not return an expression; it is greedily evaluated.
+    auto operator[] (std::size_t n) const
+    { return yap::evaluate(yap::transform(*this, take_nth{n})); }
+};
+```
+
+----
+
+```cpp
+// This transform turns a terminal of std::vector<double> into a terminal
+// containing the nth double in that vector.  Think of it as turning our
+// expression of vectors into an expression of scalars.
+struct take_nth
+{
+    yap::terminal<lazy_vector_expr, double>
+    operator() (yap::terminal<lazy_vector_expr,
+                std::vector<double>> const & expr)
+    {
+        double x = yap::value(expr)[n];
+        return yap::make_terminal<lazy_vector_expr, double>(std::move(x));
+    }
+
+    std::size_t n;
+};
+```
+
+----
+
+```cpp
+// Define operator+= with the semantics we want, in a terminal
+// instantiation of lazy_vector_expr.  We could have written a template
+// specialization here instead, but that would require more typing.
+struct lazy_vector :
+    lazy_vector_expr<
+        yap::expr_kind::terminal,
+        hana::tuple<std::vector<double>>
+    >
+{
+    explicit lazy_vector (std::vector<double> && vec)
+    { elements = hana::tuple<std::vector<double>>(std::move(vec)); }
+
+    template <yap::expr_kind Kind, typename Tuple>
+    lazy_vector & operator+= (lazy_vector_expr<Kind, Tuple> const & rhs)
+    {
+        std::vector<double> & this_vec = yap::value(*this);
+        for (int i = 0, size = (int)this_vec.size(); i < size; ++i) {
+            this_vec[i] += rhs[i];
+        }
+        return *this;
+    }
+};
+```
+
+----
+
+In this example, the terminal type owns the storage of its value, a
+`std::vector<double>`.  Terminals may instead refer to values.
+
+----
+
+### Case 4: That thing from before
+
+Remember the auto-diff example?  Instead of the very verbose form, we want to
+write this function:
+
+```cpp
+Node* build_linear_fun1(vector<Node*>& list)
+{
+    //f(x1,x2,x3) = -5*x1+sin(10)*x1+10*x2-x3/6
+    using namespace autodiff_placeholders;
+    return to_auto_diff_node(
+        -5 * 1_p + sin_(10) * 1_p + 10 * 2_p - 3_p / 6,
+        list,
+        -1.9,
+        2,
+        5./6.
+    );
+}
+```
+
+----
+
+```cpp
+template <yap::expr_kind Kind, typename Tuple>
+struct autodiff_expr
+{
+  using this_type = autodiff_expr<Kind, Tuple>;
+
+  static yap::expr_kind const kind = Kind;
+
+  Tuple elements;
+
+  BOOST_YAP_USER_UNARY_OPERATOR_MEMBER(negate, this_type, ::autodiff_expr)
+  BOOST_YAP_USER_BINARY_OPERATOR_MEMBER(plus, this_type, ::autodiff_expr)
+  BOOST_YAP_USER_BINARY_OPERATOR_MEMBER(minus, this_type, ::autodiff_expr)
+  BOOST_YAP_USER_BINARY_OPERATOR_MEMBER(multiplies, this_type, ::autodiff_expr)
+  BOOST_YAP_USER_BINARY_OPERATOR_MEMBER(divides, this_type, ::autodiff_expr)
+};
+
+BOOST_YAP_USER_FREE_BINARY_OPERATOR(plus, ::autodiff_expr)
+BOOST_YAP_USER_FREE_BINARY_OPERATOR(minus, ::autodiff_expr)
+BOOST_YAP_USER_FREE_BINARY_OPERATOR(multiplies, ::autodiff_expr)
+BOOST_YAP_USER_FREE_BINARY_OPERATOR(divides, ::autodiff_expr)
+```
+
+----
+
+```cpp
+namespace autodiff_placeholders {
+
+    // This defines a placeholder literal operator that creates autodiff_expr
+    // placeholders.
+    BOOST_YAP_USER_LITERAL_PLACEHOLDER_OPERATOR(autodiff_expr)
+
+}
+```
+
+----
+
+```cpp
+template <OPCODE Opcode>
+struct autodiff_fn_expr :
+    autodiff_expr<yap::expr_kind::terminal, hana::tuple<OPCODE>>
+{
+    using this_type = autodiff_fn_expr<Opcode>;
+
+    autodiff_fn_expr () :
+        autodiff_expr {hana::tuple<OPCODE>{Opcode}}
+    {}
+
+    BOOST_YAP_USER_MEMBER_CALL_OPERATOR(this_type, ::autodiff_expr);
+};
+
+// Someone included <math.h>, so we have to add trailing underscores.
+autodiff_fn_expr<OP_SIN> const sin_;
+autodiff_fn_expr<OP_COS> const cos_;
+autodiff_fn_expr<OP_SQRT> const sqrt_;
+```
+
+----
+
+```cpp
+struct xform
+{
+    // Create a var-node for each placeholder when we see it for the first
+    // time.
+    template <long long I>
+    Node * operator() (yap::terminal_tag, yap::placeholder<I>)
+    {
+        if (list_.size() < I)
+            list_.resize(I);
+        auto & retval = list_[I - 1];
+        if (retval == nullptr)
+            retval = create_var_node();
+        return retval;
+    }
+```
+
+----
+
+```cpp
+    // Create a param-node for every numeric terminal in the expression.
+    Node * operator() (yap::terminal_tag, double x)
+    { return create_param_node(x); }
+
+    // Just pass through the OPCODE within a function-terminal.
+    OPCODE operator() (yap::terminal_tag, OPCODE opcode)
+    { return opcode; }
+```
+
+----
+
+```cpp
+    // Create a "uary" node for each call expression, using its OPCODE.
+    template <typename Expr>
+    Node * operator() (yap::call_tag, OPCODE opcode, Expr const & expr)
+    { return create_uary_op_node(opcode, yap::transform(expr, *this)); }
+
+    template <typename Expr>
+    Node * operator() (yap::negate_tag, Expr const & expr)
+    { return create_uary_op_node(OP_NEG, yap::transform(expr, *this)); }
+```
+
+----
+
+```cpp
+    // Define a mapping from binary arothmetic tag type to OPCODE...
+    static OPCODE op_for_tag (yap::plus_tag) { return OP_PLUS; }
+    static OPCODE op_for_tag (yap::minus_tag) { return OP_MINUS; }
+    static OPCODE op_for_tag (yap::multiplies_tag) { return OP_TIMES; }
+    static OPCODE op_for_tag (yap::divides_tag) { return OP_DIVID; }
+```
+
+----
+
+```cpp
+    // ... and use it to handle all the binary arithmetic operators.
+    template <typename Tag, typename Expr1, typename Expr2>
+    Node * operator() (Tag tag, Expr1 const & expr1, Expr2 const & expr2)
+    {
+        return create_binary_op_node(
+            op_for_tag(tag),
+            yap::transform(expr1, *this),
+            yap::transform(expr2, *this)
+        );
+    }
+
+    vector<Node *> & list_;
+};
+```
+
+----
+
+```cpp
+template <typename Expr, typename ...T>
+Node * to_auto_diff_node (Expr const& expr, vector<Node *>& list, T ...args)
+{
+    Node * retval = nullptr;
+
+    // This fills in list as a side effect.
+    retval = yap::transform(expr, xform{list});
+
+    // Fill in the values of the value-nodes in list with the "args"
+    // parameter pack.
+    auto it = list.begin();
+    hana::for_each(
+        hana::make_tuple(args ...),
+        [&it](auto x) {
+            Node * n = *it;
+            VNode * v = polymorphic_downcast<VNode *>(n);
+            v->val = x;
+            ++it;
+        }
+    );
+
+    return retval;
+}
+```
 
 ----
 
 ## Some Technicalities of Use
 
-- expr_ref
-- lifetime or rvalues
-- evaluating transform
+- representing yap expressions like builtin expressions:
+  - expr_ref
+  - lifetime or rvalues in expressions
+  - references vs. values in expressions
+  - decays
+  - see How Operands Are Treated section of docs
+
+- evaluating transforms, and the inherent difference between transforms and evaluations
+- owning vs. unowning terminals
+- placeholders
+- else_if
+- member function vs. free function macros
+- conversion operator template
 
 TODO
 
