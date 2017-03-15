@@ -270,12 +270,23 @@ expr_kind.
 | `E::kind`      |`expr_kind` | Kind of expression `E` is. | Compile-time constant.           |
 | `e.elements`   |`Tuple`     | Child expressions of `e`   | Elements appropriate to `E::kind`. |
 
+Most Yap function templates operate on Expressions.
+<!-- .element: class="fragment" data-fragment-index="1" -->
+
+A single Yap expressions can contain multiple different models of Expression
+within it.
+<!-- .element: class="fragment" data-fragment-index="2" -->
+
 ----
 
 ## The ExpressionTemplate Concept
 
 A template models `ExpressionTemplate` if it, when instantiated with an
 `expr_kind` and an appropriate tuple, forms an `Expression`.
+
+Nearly every Yap function template must be instantiated with an
+ExpressionTemplate.
+<!-- .element: class="fragment" data-fragment-index="1" -->
 
 ----
 
@@ -523,7 +534,7 @@ arbitrary side effects, and may be stateful.
 
 ### Case 3: That thing from before
 
-Remember how Eigen elimiated temporaries from an assignment to an expression?
+Remember how Eigen eliminated temporaries from an assignment to an expression?
 
 ```cpp
 int main ()
@@ -582,7 +593,7 @@ struct take_nth
 {
     yap::terminal<lazy_vector_expr, double>
     operator() (yap::terminal<lazy_vector_expr,
-                std::vector<double>> const & expr)
+                              std::vector<double>> const & expr)
     {
         double x = yap::value(expr)[n];
         return yap::make_terminal<lazy_vector_expr, double>(std::move(x));
@@ -618,6 +629,39 @@ struct lazy_vector :
     }
 };
 ```
+
+----
+
+### How about code generation?
+
+----
+
+Here's the Linux x86-64 assembly code for `double d1 = v2[2] + v3[2]`:
+
+```
+   mov    0x201329(%rip),%rax        # 0x602190 <v2>
+   movsd  0x10(%rax),%xmm0
+   mov    0x201335(%rip),%rax        # 0x6021a8 <v3>
+   addsd  0x10(%rax),%xmm0
+   retq   
+```
+
+----
+
+And here it is for the Yap expression `double d1 = (v2 + v3)[2]`:
+
+```
+   mov    0x201349(%rip),%rax        # 0x602190 <v2>
+   movsd  0x10(%rax),%xmm0
+   mov    0x201355(%rip),%rax        # 0x6021a8 <v3>
+   addsd  0x10(%rax),%xmm0
+   retq   
+```
+
+----
+
+The temporary elimination that happens in `v1 += v2 - v3` also produces the
+same assembly as the equivalent hand-written loop.
 
 ----
 
@@ -807,14 +851,99 @@ Node * to_auto_diff_node (Expr const& expr, vector<Node *>& list, T ...args)
 
 ----
 
-## Some Technicalities of Use
+## Technicalities of Use
 
-- representing yap expressions like builtin expressions:
-  - expr_ref
-  - lifetime or rvalues in expressions
-  - references vs. values in expressions
-  - decays
-  - see How Operands Are Treated section of docs
+----
+
+Yap makes every effort to make a Yap expression walk and quack just like like
+a built-in expression.
+
+----
+
+- Values are partially decayed.
+  - Array to pointer.
+  <!-- .element: class="fragment" data-fragment-index="1" -->
+  - Array reference to pointer.
+  <!-- .element: class="fragment" data-fragment-index="2" -->
+  - Function to function pointer.
+  <!-- .element: class="fragment" data-fragment-index="3" -->
+
+----
+
+- Lvalues are captured in expressions by reference
+
+- Rvalues are treated as temporaries.
+<!-- .element: class="fragment" data-fragment-index="1" -->
+  - Rvalues are copied into, and owned by, the expression.
+  <!-- .element: class="fragment" data-fragment-index="2" -->
+  - Rvalues share the lifetime of the expression.
+  <!-- .element: class="fragment" data-fragment-index="3" -->
+  - make_terminal() should be called with a std::move'd value to force a value
+  to be stored.
+  <!-- .element: class="fragment" data-fragment-index="4" -->
+
+----
+
+For example:
+
+```
+auto expr = a + 1;
+```
+
+Expect that `a` will be an lvalue reference to some object of type
+`decltype(a)`, regardless of whether `decltype(a)` is an `Expression` or a
+builtin type.
+<!-- .element: class="fragment" data-fragment-index="1" -->
+
+Similarly, you should expect the `1` to be an rvalue.
+<!-- .element: class="fragment" data-fragment-index="2" -->
+
+This is just what you would expect in any C++ expression.
+<!-- .element: class="fragment" data-fragment-index="3" -->
+
+----
+
+This makes it easy to choose among copies, mutable refs and constant refs in
+expressions -- just use the normal rules.
+
+
+```
+int i = 0;
+auto expr = boost::yap::make_terminal(i) = 42;
+evaluate(expr);
+std::cout << i << "\n"; // Prints 42.
+```
+
+----
+
+Yap expressions can be built piecemeal:
+
+```
+auto subexpr = boost::yap::make_terminal(1) + 2;
+// This is fine, and acts more-or-less as if you wrote "1 / (1 + 2)".
+auto expr = 1 / subexpr;
+```
+
+Builtin expressions cannot:
+
+```
+auto subexpr = 1 + 2;    // Same as "int subexpr = 3;".  Hm.
+auto expr = 1 / subexpr; // Same as "int expr = 0;" Arg.
+```
+
+----
+
+R- and lvalueness of subexpressions are treated just like terminals.
+
+- Lvalues are captured by reference.
+<!-- .element: class="fragment" data-fragment-index="1" -->
+  - Subexpression capture is done with the special expr_ref expression kind.
+  <!-- .element: class="fragment" data-fragment-index="2" -->
+
+- Rvalues are moved into the expression.
+<!-- .element: class="fragment" data-fragment-index="3" -->
+
+----
 
 - evaluating transforms, and the inherent difference between transforms and evaluations
 - owning vs. unowning terminals
