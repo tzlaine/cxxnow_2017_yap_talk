@@ -4,7 +4,7 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
-        <title>C++ metaprogramming: evolution and future directions</title>
+        <title>Expression Templates Everywhere with C++14 and Yap</title>
         <meta name="author" content="Zach Laine">
 
         <link rel="stylesheet" href="css/reveal.css">
@@ -243,20 +243,16 @@ This is the most common result.
 First, there is an enumeration `expr_kind` that contains all the different kinds of
 Yap expressions:
 
-- Expression-references (expr_ref)
-<!-- .element: class="fragment" data-fragment-index="1" --> 
-- Terminals ("leaf nodes")
-<!-- .element: class="fragment" data-fragment-index="2" --> 
-- The overloadable operators (+, -=, [], etc.)
-<!-- .element: class="fragment" data-fragment-index="3" --> 
-- Ternary-operator analogue (if_else)
-<!-- .element: class="fragment" data-fragment-index="4" --> 
-- The call operator
-<!-- .element: class="fragment" data-fragment-index="5" --> 
+<ul>
+<li class="fragment" data-fragment-index="1">Expression-references (`expr_ref`)</li>
+<li class="fragment" data-fragment-index="2">Terminals ("leaf nodes")</li>
+<li class="fragment" data-fragment-index="3">The overloadable operators (`+`, `-=`, `[]`, etc.)</li>
+<li class="fragment" data-fragment-index="4">Ternary-operator analogue (`if_else`)</li>
+<li class="fragment" data-fragment-index="5">The call operator</li>
+</ul>
 
-Each expr_kind enumerator has a fixed arity in [1, 3], except for the call
-expr_kind.
-<!-- .element: class="fragment" data-fragment-index="6" --> 
+<p class="fragment" data-fragment-index="6">Each expr_kind enumerator has a
+fixed arity in [1, 3], except for the call `expr_kind`.</p>
 
 ----
 
@@ -270,12 +266,11 @@ expr_kind.
 | `E::kind`      |`expr_kind` | Kind of expression `E` is. | Compile-time constant.           |
 | `e.elements`   |`Tuple`     | Child expressions of `e`   | Elements appropriate to `E::kind`. |
 
-Most Yap function templates operate on Expressions.
-<!-- .element: class="fragment" data-fragment-index="1" -->
+<p class="fragment" data-fragment-index="1">Most Yap function templates
+operate on `Expression`s.</p>
 
-A single Yap expressions can contain multiple different models of Expression
-within it.
-<!-- .element: class="fragment" data-fragment-index="2" -->
+<p class="fragment" data-fragment-index="2">A single Yap expressions can
+contain multiple different models of `Expression` within it.</p>
 
 ----
 
@@ -284,9 +279,8 @@ within it.
 A template models `ExpressionTemplate` if it, when instantiated with an
 `expr_kind` and an appropriate tuple, forms an `Expression`.
 
-Nearly every Yap function template must be instantiated with an
-ExpressionTemplate.
-<!-- .element: class="fragment" data-fragment-index="1" -->
+<p class="fragment" data-fragment-index="1">Nearly every Yap function template
+must be instantiated with an `ExpressionTemplate`.</p>
 
 ----
 
@@ -294,7 +288,8 @@ ExpressionTemplate.
 
 ----
 
-Algorithms that operate on expression trees that model the Expression concept.
+Algorithms that operate on expression trees that model the `Expression`
+concept.
 
 ```cpp
 template <typename Expr, typename ...T>
@@ -302,9 +297,9 @@ decltype(auto) evaluate (Expr && expr, T && ... t);
 ```
 <!-- .element: class="fragment" data-fragment-index="1" -->
 
-Evaluates expr based on built-in evaluation of the operators used (if any),
-with user-defined evaluations via customization points.
-<!-- .element: class="fragment" data-fragment-index="1" -->
+<p class="fragment" data-fragment-index="2">Evaluates `expr` based on built-in
+evaluation of the operators used (if any), with user-defined evaluations via
+customization points.</p>
 
 ----
 
@@ -319,8 +314,8 @@ evaluation of `expr` (e.g. an `int`) or an `Expression`.
 That bears repeating.
 <!-- .element: class="fragment" data-fragment-index="1" -->
 
-A call to transform() may evaluate the expression.
-<!-- .element: class="fragment" data-fragment-index="2" -->
+<p class="fragment" data-fragment-index="2">A call to `transform()` may
+evaluate the expression.</p>
 
 ----
 
@@ -328,23 +323,28 @@ There are also many functions that return the nth value from an
 `Expression`'s tuple, using a naming scheme and typesafety that is
 kind-specific:
 
-- `left()` and `right()` operate only on binary expressions
-- `callable()` and `argument()` operate only on call expressions
-- etc.
+<ul>
+<li class="fragment" data-fragment-index="1">`left()` and `right()` operate
+only on binary expressions</li>
+<li class="fragment" data-fragment-index="2">`callable()` and `argument()`
+operate only on call expressions</li>
+<li class="fragment" data-fragment-index="3">etc.</li>
+</ul>
 
 ```cpp
 auto expr = x + 1;
 auto left = yap::left(expr); // Ok.
 auto fn = yap::callable(expr); // Error; expr is not a call-expression.
 ```
+<!-- .element: class="fragment" data-fragment-index="4" -->
 
 ----
 
 There is a reference template `yap::expression` that models
 ExpressionTemplate.
 
-It provides en overload for every operator, if_else, etc.
-<!-- .element: class="fragment" data-fragment-index="1" -->
+<p class="fragment" data-fragment-index="1">It provides en overload for every
+operator, `if_else`, etc.</p>
 
 It is useful for prototyping or quick-and-dirty uses of expression templates.
 <!-- .element: class="fragment" data-fragment-index="2" -->
@@ -890,13 +890,12 @@ For example:
 auto expr = a + 1;
 ```
 
-Expect that `a` will be an lvalue reference to some object of type
-`decltype(a)`, regardless of whether `decltype(a)` is an `Expression` or a
-builtin type.
-<!-- .element: class="fragment" data-fragment-index="1" -->
+<p class="fragment" data-fragment-index="1">Expect that `a` will be an lvalue
+reference to some object of type `decltype(a)`, regardless of whether
+`decltype(a)` is an `Expression` or a builtin type.</p>
 
-Similarly, you should expect the `1` to be an rvalue.
-<!-- .element: class="fragment" data-fragment-index="2" -->
+<p class="fragment" data-fragment-index="2">Similarly, you should expect the
+`1` to be an rvalue.</p>
 
 This is just what you would expect in any C++ expression.
 <!-- .element: class="fragment" data-fragment-index="3" -->
