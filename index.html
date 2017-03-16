@@ -262,14 +262,16 @@ This is the most common result.
 
 ----
 
-## Design Goals
+### Design Goals
 
 1. Make expression templates easy to use.
-<!-- .element: class="fragment" data-fragment-index="1" -->
+<!-- .element: class="fragment" -->
 2. Mimic the behavior of built-in expressions wherever possible (see #1).
-<!-- .element: class="fragment" data-fragment-index="2" -->
+<!-- .element: class="fragment" -->
 3. Never require implicit operations/evaluations.
-<!-- .element: class="fragment" data-fragment-index="3" -->
+<!-- .element: class="fragment" -->
+4. Provide the same functionality as Boost.Proto, requiring less user code.
+<!-- .element: class="fragment" -->
 
 ----
 
@@ -297,7 +299,7 @@ fixed arity in [1, 3], except for the `expr_kind` `call`.</p>
 
 ----
 
-## The Expression Concept
+### The Expression Concept
 
 `E` is a type that models `Expression`; `e` is an object of type `E`; and
 `Tuple` is an instantiation of `hana::tuple`.
@@ -316,7 +318,7 @@ contain multiple different models of `Expression` within it.</p>
 
 ----
 
-## The ExpressionTemplate Concept
+### The ExpressionTemplate Concept
 
 A template models `ExpressionTemplate` if it, when instantiated with an
 `expr_kind` and an appropriate tuple, forms an `Expression`.
@@ -335,7 +337,7 @@ concept.
 
 ----
 
-## `evaluate()`
+### `evaluate()`
 
 ```cpp
 template <typename Expr, typename ...T>
@@ -349,8 +351,27 @@ customization points.</p>
 
 ----
 
-## `transform()`
+### `evaluate_as()`
 
+```cpp
+template <typename R, typename Expr, typename ...T>
+decltype(auto) evaluate_as (Expr && expr, T && ... t);
+```
+<!-- .element: class="fragment" -->
+
+<p class="fragment">Just like `evaluate()`, except that the evaluation hooks
+into the `eval_expression_as()` customization point.</p>
+
+<p class="fragment">By default, `eval_expression_as()` just does a normal
+evaluation, and then `static_cast`s the result to `R`.</p>
+
+<p class="fragment">If you want different behavior when evaluating an
+expression as one of several types, customizing `eval_expression_as()` allows
+that.</p>
+
+----
+
+### `transform()`
 
 ```cpp
 template <typename Expr, typename Transform>
@@ -1013,18 +1034,282 @@ lvalueness of terminals.
 
 ----
 
-- evaluating transforms, and the inherent difference between transforms and evaluations
-- owning vs. unowning terminals
-- placeholders
-- else_if
-- member function vs. free function macros
-- conversion operator template
+## `evaluate()` vs. `transform()`
 
-TODO
+----
+
+`evaluate()`
+
+- Must traverse the entire expression tree, evaluating every node.
+<!-- .element: class="fragment" -->
+- Picks up customization points almost exclusively via ADL.
+<!-- .element: class="fragment" -->
+- Is entirely implicit and pre-determined at the point of call.
+<!-- .element: class="fragment" -->
+
+`transform()`
+<!-- .element: class="fragment" -->
+
+- May traverse all or part of the expression tree.
+<!-- .element: class="fragment" -->
+- May return the original tree, a different expression tree, or a
+value that is not an expression tree at all.
+<!-- .element: class="fragment" -->
+- Is explicit and may be modified at the point of call.
+<!-- .element: class="fragment" -->
+
+----
+
+### Value vs. Reference Terminals
+
+Terminals may own/contain their values, or refer to them.
+
+Using reference terminals and appropriately constrained nonmember operators
+allows you to use Yap with arbitrary types non-intrusively.
+<!-- .element: class="fragment" -->
+
+----
+
+### Define Free Operators on `std::vector`s
+
+```cpp
+// Define a type trait that identifies std::vectors.
+template <typename T>
+struct is_vec : std::false_type {};
+
+template <typename T, typename A>
+struct is_vec<std::vector<T, A>> : std::true_type {};
+```
+
+```cpp
+// Define all the expression-returning numeric operators we need.  Each will
+// accept any std::vector<> as any of its arguments, and then any value in the
+// remaining argument, if any -- some of the operators below are unary.
+BOOST_YAP_USER_UDT_ANY_BINARY_OPERATOR(plus, boost::yap::expression, is_vec);
+BOOST_YAP_USER_UDT_ANY_BINARY_OPERATOR(minus, boost::yap::expression, is_vec);
+// etc.
+```
+<!-- .element: class="fragment" -->
+
+----
+
+### Define `assign()`
+
+```cpp
+// Assigns some expression e to the given vector by evaluating e elementwise,
+// to avoid temporaries and allocations.
+template <typename T, typename Expr>
+std::vector<T> & assign (std::vector<T> & vec, Expr const & e)
+{
+  decltype(auto) expr = boost::yap::as_expr(e);
+  assert(equal_sizes(vec.size(), expr));
+  for (std::size_t i = 0, size = vec.size(); i < size; ++i) {
+    vec[i] = boost::yap::evaluate(boost::yap::transform(expr, take_nth{i}));
+  }
+  return vec;
+}
+```
+
+----
+
+```cpp
+int main()
+{
+    int i;
+    int const n = 10;
+    std::vector<int> a,b,c,d;
+    std::vector<double> e(n);
+
+    for (i = 0; i < n; ++i)
+    {
+        a.push_back(i);
+        b.push_back(2*i);
+        c.push_back(3*i);
+        d.push_back(i);
+    }
+
+    // After this point, no allocations occur.
+```
+
+----
+
+```cpp
+    assign(b, 2);
+    assign(d, a + b * c);
+
+    a += if_else(d < 30, b, c);
+
+    assign(e, c);
+    e += e - 4 / (c + 1);
+
+    for (i = 0; i < n; ++i)
+    {
+        std::cout
+            << " a(" << i << ") = " << a[i]
+            << " b(" << i << ") = " << b[i]
+            << " c(" << i << ") = " << c[i]
+            << " d(" << i << ") = " << d[i]
+            << " e(" << i << ") = " << e[i]
+            << std::endl;
+    }
+
+    return 0;
+}```
+
+----
+
+## The Macros
+
+----
+
+Nearly all the macros take an `expr_template`, the `ExpressionTemplate` used
+to instantiate the result.
+
+----
+
+```cpp
+#define BOOST_YAP_USER_UNARY_OPERATOR_MEMBER( /* ... */ )
+```
+
+Defines a unary operator as a set of three member function templates, each
+with different qualifiers (e.g. `operator~()`).
+
+----
+
+```cpp
+#define BOOST_YAP_USER_BINARY_OPERATOR_MEMBER( /* ... */ )
+```
+
+Defines a binary operator as a set of three member function templates, each
+with different qualifiers (e.g. `operator/()`).
+
+<p class="fragment">The resulting operators only match `Expressions` on the
+left (since they are member functions), but match anything on the left.</p>
+
+```cpp
+auto expr = yap::make_terminal<my_expr>(1.0);
+
+auto expr_2 = expr / expr; // Ok.
+auto expr_3 = expr / 0;    // Ok.
+auto expr_4 = 1 / expr;    // Error!  No such operator.
+```
+<!-- .element: class="fragment" -->
+
+----
+
+```cpp
+#define BOOST_YAP_USER_MEMBER_CALL_OPERATOR( /* ... */ )
+```
+
+Defines a call operator as a set of three member function templates, each with
+different qualifiers.
+
+----
+
+```cpp
+#define BOOST_YAP_USER_FREE_BINARY_OPERATOR( /* ... */ )
+```
+
+Defines a binary operator as a set of two free function templates.
+
+<p class="fragment">The first template matches anything a non-`Expression` on
+the left, and an `Expression` lvalue on the right.</p>
+
+<p class="fragment">The first template matches anything a non-`Expression` on
+the left, and an `Expression` rvalue on the right.</p>
+
+```cpp
+auto expr = yap::make_terminal<my_expr>(1.0);
+
+auto expr_2 = expr / expr;         // Error!  No such operator.
+auto expr_3 = expr / 0;            // Error!  No such operator.
+auto expr_4 = 1 / expr;            // Ok.
+auto expr_5 = 1 / std::move(expr); // Ok.
+```
+<!-- .element: class="fragment" -->
+
+----
+
+```cpp
+#define BOOST_YAP_USER_EXPR_IF_ELSE( /* ... */ )
+```
+
+Defines a function template that matches any given arguments, as long as one
+of them is an `Expression`.
+
+----
+
+```cpp
+#define BOOST_YAP_USER_UDT_ANY_IF_ELSE( /* ... */ )
+```
+
+Defines a function template that matches three non-`Expression` arguments, as
+long as one of them matches the given type trait.
+
+----
+
+```cpp
+#define BOOST_YAP_USER_UDT_UNARY_OPERATOR( /* ... */ )
+```
+
+Defines a function template that matches any single non-`Expression` argument
+that matches the given type trait.
+
+----
+
+```cpp
+#define BOOST_YAP_USER_UDT_UDT_BINARY_OPERATOR( /* ... */ )
+```
+
+Defines a function template that matches any two non-`Expression` arguments
+that match the given left and right type traits.
+
+----
+
+```cpp
+#define BOOST_YAP_USER_UDT_ANY_BINARY_OPERATOR( /* ... */ )
+```
+
+Defines a function template that matches any two non-`Expression` arguments,
+as long as at least one matches the given type trait.
+
+----
+
+```cpp
+#define BOOST_YAP_USER_LITERAL_PLACEHOLDER_OPERATOR( /* ... */ )
+```
+
+Defines a user defined literal template that creates literal placeholders
+using the given `ExpressionTemplate`.
+
+----
+
+`BOOST_YAP_CONVERSION_OPERATOR_TEMPLATE`
+
+This only applies to the reference `ExpressionTemplate` `yap::expression`.
+
+```cpp
+template <typename R>
+operator R ()
+{ return eval_expression_as(*this, hana::basic_type<R>{}); }
+```
+<!-- .element: class="fragment" -->
+
+<p class="fragment">You may want to apply the same pattern to your own
+`ExpressionTemplate`s</p>
+
+... but probably not until we get concepts.
+<!-- .element: class="fragment" -->
 
 ----
 
 ## Comparison to Boost.Proto
+
+----
+
+Caveat: I'm no Boost.Proto guru.
+
+----
 
 TODO
 
