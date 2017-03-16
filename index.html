@@ -1311,20 +1311,174 @@ Caveat: I'm no Boost.Proto guru.
 
 ----
 
-TODO
+Proto must do everything implicitly, because of the lack of `auto` variable
+declarations.
+
+Yap allows you to do the same, if that matches your use case more closely, but
+encourages you to do transformation and evaluation explicitly.
+<!-- .element: class="fragment" -->
+
+----
+
+Proto uses explicit contexts to give meaning to expression trees.
+
+With Yap, the context is the scope of the expression tree.
+<!-- .element: class="fragment" -->
+
+----
+
+Proto and Yap differ in how expressions are customized.  Proto uses domains
+and wrappers, Yap uses user-written expression templates.
+
+----
+
+Proto suffers from C++98-era metaprogramming compile times, and Yap does not.
+
+----
+
+There are many other differences, but those are the big ones.
 
 ====================
 
 ## Part 2
 ### Lessons learned
 
-TODO: expr_kind is better than a tag type because of constexpr if.
+----
+
+### Lesson 1:
+
+A `static const` value like `expr_ref` is easier to use than a tag type in
+C++17.
+
+```cpp
+if constexpr (kind == expr_kind::expr_ref) {
+    return /* ... */;
+} else if constexpr (kind == expr_kind::terminal) {
+    return /* ... */;
+} /* else ... */
+```
+<!-- .element: class="fragment" -->
 
 ----
 
-## Experience Using constexpr if
+### Lesson 2:
 
-TODO
+When writing complex template code in C++14, write it first in C++17, and then
+back-port.
+
+Counterintuitively, this saves a lot of time!
+<!-- .element: class="fragment" -->
+
+----
+
+```cpp
+template <typename T>
+decltype(auto) value_impl (T && x)
+{
+    if constexpr (is_expr<T>::value) {
+        using namespace hana::literals;
+        constexpr expr_kind kind = remove_cv_ref_t<T>::kind;
+        constexpr expr_arity arity = arity_of<kind>();
+        if constexpr (kind == expr_kind::expr_ref) {
+            return value_impl(deref(static_cast<T &&>(x)));
+        } else if constexpr (arity == expr_arity::one) {
+            if constexpr (std::is_lvalue_reference<T>{}) {
+                return x.elements[0_c];
+            } else {
+                return std::move(x.elements[0_c]);
+            }
+        } else {
+            return static_cast<T &&>(x);
+        }
+    } else {
+        return static_cast<T &&>(x);
+    }
+}
+```
+
+----
+
+```cpp
+// Forward declaration.
+template <typename T>
+decltype(auto) value_impl (T && x);
+
+// ...
+
+template <typename T>
+decltype(auto) value_impl (T && x)
+{
+  return detail::value_impl_t<T, detail::is_expr<T>::value>{}(
+    static_cast<T &&>(x)
+  );
+}
+```
+
+----
+
+```cpp
+template <typename T, bool IsExpr>
+struct value_impl_t
+{
+  decltype(auto) operator() (T && x)
+  {
+    constexpr expr_kind kind = detail::remove_cv_ref_t<T>::kind;
+    constexpr detail::expr_arity arity = detail::arity_of<kind>();
+    return value_expr_impl<
+      T,
+      kind == expr_kind::expr_ref,
+      arity == detail::expr_arity::one,
+      std::is_lvalue_reference<T>{}
+    >{}(static_cast<T &&>(x));
+  }
+};
+
+template <typename T>
+struct value_impl_t<T, false>
+{
+  decltype(auto) operator() (T && x)
+  { return static_cast<T &&>(x); }
+};
+```
+
+----
+
+```cpp
+template <typename T, bool IsExprRef, bool TakeValue, bool IsLvalueRef>
+struct value_expr_impl;
+
+template <typename T, bool TakeValue, bool IsLvalueRef>
+struct value_expr_impl<T, true, TakeValue, IsLvalueRef>
+{
+  decltype(auto) operator() (T && x)
+  { return value_impl(yap::deref(static_cast<T &&>(x))); }
+};
+
+template <typename T>
+struct value_expr_impl<T, false, true, true>
+{
+  decltype(auto) operator() (T && x)
+  { return x.elements[hana::llong_c<0>]; }
+};
+```
+
+----
+
+```cpp
+template <typename T>
+struct value_expr_impl<T, false, true, false>
+{
+  decltype(auto) operator() (T && x)
+  { return std::move(x.elements[hana::llong_c<0>]); }
+};
+
+template <typename T, bool IsLvalueRef>
+struct value_expr_impl<T, false, false, IsLvalueRef>
+{
+  decltype(auto) operator() (T && x)
+  { return static_cast<T &&>(x); }
+};
+```
 
 ----
 
