@@ -1214,11 +1214,11 @@ different qualifiers.
 
 Defines a binary operator as a set of two free function templates.
 
-<p class="fragment">The first template matches anything a non-`Expression` on
-the left, and an `Expression` lvalue on the right.</p>
+<p class="fragment">The first template matches any non-`Expression` on the
+left, and an `Expression` lvalue on the right.</p>
 
-<p class="fragment">The first template matches anything a non-`Expression` on
-the left, and an `Expression` rvalue on the right.</p>
+<p class="fragment">The first template matches any non-`Expression` on the
+left, and an `Expression` rvalue on the right.</p>
 
 ```cpp
 auto expr = yap::make_terminal<my_expr>(1.0);
@@ -1349,7 +1349,7 @@ There are many other differences, but those are the big ones.
 
 ### Lesson 1:
 
-A `static const` value like `expr_ref` is easier to use than a tag type in
+A `static const` value like `expr_kind` is easier to use than a tag type in
 C++17.
 
 ```cpp
