@@ -957,7 +957,7 @@ a built-in expression.
 
 ----
 
-- Lvalues are captured in expressions by reference
+- Lvalues are captured in expressions by reference.
 
 - Rvalues are treated as temporaries.
 <!-- .element: class="fragment" data-fragment-index="1" -->
@@ -1057,6 +1057,8 @@ value that is not an expression tree at all.
 <!-- .element: class="fragment" -->
 - Is explicit and may be modified at the point of call.
 <!-- .element: class="fragment" -->
+
+TODO: Examples of deep vs. shallow transforms.
 
 ----
 
@@ -1482,15 +1484,43 @@ struct value_expr_impl<T, false, false, IsLvalueRef>
 
 ----
 
-## Pluses And Minuses of Customization Points
+### Lesson 3:
 
-TODO
+Customization points are problematic because of all that ADL.
+
+<p class="fragment">To get different behaviors using `eval_plus()`, you must
+use a different type or different namespace for each desired behavior.</p>
 
 ----
 
-## Explicit vs. Implicit Customization Techniques
+### Lesson 4:
 
-TODO
+Explicit transforms make for better code than implicit transforms.
+
+```cpp
+template <yap::expr_kind Kind, typename Tuple>
+struct my_expr { /* ... */ };
+
+struct matrix
+{
+    // ...
+    template <typename Expr>
+    matrix & operator= (Expr const & expr_1)
+    {
+        auto expr_2 = yap::transform(expr_1, transform_1{});
+        auto expr_3 = yap::transform(expr_2, transform_2{});
+        // etc...
+        auto expr_N = yap::transform(expr_N_minus_1, transform_N_minus_1{});
+
+        *this = yap::evaluate_as<matrix>(expr_N);
+    }
+};
+```
+
+----
+
+Wrapping `*this` in a terminal may eliminate the temporary, but you get the
+idea.
 
 ====================
 
