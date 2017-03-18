@@ -172,16 +172,6 @@ my_expr<
 
 ----
 
-`yap::print(expr)` produces:
-
-```
-expr<+>
-    term<yap::placeholder<1ll>>[=1]
-    term<int>[=3]
-```
-
-----
-
 Using the captured expression, we can transform it:
 ```cpp
 auto transformed_expr = yap::transform(expr, some_transform);
@@ -553,25 +543,6 @@ int main ()
 ----
 
 ```cpp
-    // Displays "5"
-    std::cout << expr_1_fn(3.0) << std::endl;
-
-    // Displays "6"
-    std::cout << expr_2_fn(3.0, 2.0) << std::endl;
-
-    // Displays "0.5"
-    std::cout << expr_3_fn(3.0, 2.0) << std::endl;
-
-    // Static-asserts with "Called with wrong number of args."
-    //std::cout << expr_3_fn(3.0) << std::endl;
-
-    // Static-asserts with "Called with wrong number of args."
-    //std::cout << expr_3_fn(3.0, 2.0, 1.0) << std::endl;
-```
-
-----
-
-```cpp
 struct get_arity {
     template <long long I>
     hana::llong<I> operator() (yap::terminal_tag, yap::placeholder<I>)
@@ -594,6 +565,25 @@ struct get_arity {
         ));
     }
 };
+```
+
+----
+
+```cpp
+    // Displays "5"
+    std::cout << expr_1_fn(3.0) << std::endl;
+
+    // Displays "6"
+    std::cout << expr_2_fn(3.0, 2.0) << std::endl;
+
+    // Displays "0.5"
+    std::cout << expr_3_fn(3.0, 2.0) << std::endl;
+
+    // Static-asserts with "Called with wrong number of args."
+    //std::cout << expr_3_fn(3.0) << std::endl;
+
+    // Static-asserts with "Called with wrong number of args."
+    //std::cout << expr_3_fn(3.0, 2.0, 1.0) << std::endl;
 ```
 
 ----
@@ -965,9 +955,10 @@ a built-in expression.
   <!-- .element: class="fragment" data-fragment-index="2" -->
   - Rvalues share the lifetime of the expression.
   <!-- .element: class="fragment" data-fragment-index="3" -->
-  - make_terminal() should be called with a std::move'd value to force a value
-  to be stored.
-  <!-- .element: class="fragment" data-fragment-index="4" -->
+
+`make_terminal()` should be called with a `std::move`d value to force a value
+to be stored.
+<!-- .element: class="fragment" data-fragment-index="4" -->
 
 ----
 
