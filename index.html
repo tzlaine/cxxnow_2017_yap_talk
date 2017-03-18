@@ -1058,7 +1058,42 @@ value that is not an expression tree at all.
 - Is explicit and may be modified at the point of call.
 <!-- .element: class="fragment" -->
 
-TODO: Examples of deep vs. shallow transforms.
+----
+
+### Transform Recursiveness
+
+Consider this expression:
+<!-- .element: class="fragment" data-fragment-index="3" -->
+
+```cpp
+auto expr = a + b * c;
+```
+<!-- .element: class="fragment" data-fragment-index="3" -->
+
+----
+
+```cpp
+struct xform
+{
+    template <typename L, typename R>
+    auto operator() (yap::plus_tag, L && left, R && right)
+    {
+#if SHALLOW
+        // Doesn't also transform left and right.
+        return some_function_of(left, right);
+#else
+        return some_function_of(
+            yap::transform(left, *this),
+            yap::transform(right, *this)
+        );
+#endif
+    }
+
+    template <typename L, typename R>
+    auto operator() (yap::multiplies_tag, L && left, R && right)
+    { return /* ... */ };
+};
+```
 
 ----
 
