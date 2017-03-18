@@ -1581,6 +1581,16 @@ https://github.com/tzlaine/yap <br>
                 history: true,
                 transition: 'none',
 
+                // These bindings are for a Satechi Smart Pointer Pro's
+                // directional buttons.
+                keyboard: {
+                    33: 'up',
+                    34: 'down',
+                    27: 'right',
+                    116: 'right',
+                    66: 'left'
+                },
+
                 dependencies: [
                     { src: 'lib/js/classList.js', condition: function() { return !document.body.classList; } },
                     { src: 'plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
