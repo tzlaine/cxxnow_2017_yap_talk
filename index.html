@@ -50,6 +50,17 @@
 
 ----
 
+What are expression templates?
+
+They are C++ templates used to represent expressions.
+<!-- .element: class="fragment" -->
+
+Expression templates allows you to capture a C++ expression as an expression
+tree that can be subsequently transformed and/or evaluated.
+<!-- .element: class="fragment" -->
+
+----
+
 Why use expression templates?
 
 - Optimization
@@ -939,26 +950,25 @@ a built-in expression.
 
 - Types are partially decayed.
   - Array to pointer.
-  <!-- .element: class="fragment" data-fragment-index="1" -->
+  <!-- .element: class="fragment" -->
   - Array reference to pointer.
-  <!-- .element: class="fragment" data-fragment-index="2" -->
+  <!-- .element: class="fragment" -->
   - Function to function pointer.
-  <!-- .element: class="fragment" data-fragment-index="3" -->
+  <!-- .element: class="fragment" -->
 
 ----
 
 - Lvalues are captured in expressions by reference.
 
 - Rvalues are treated as temporaries.
-<!-- .element: class="fragment" data-fragment-index="1" -->
+<!-- .element: class="fragment" -->
   - Rvalues are moved into, and owned by, the expression.
-  <!-- .element: class="fragment" data-fragment-index="2" -->
+  <!-- .element: class="fragment" -->
   - Rvalues share the lifetime of the expression.
-  <!-- .element: class="fragment" data-fragment-index="3" -->
+  <!-- .element: class="fragment" -->
 
-`make_terminal()` should be called with a `std::move`d value to force a value
-to be stored.
-<!-- .element: class="fragment" data-fragment-index="4" -->
+<p class="fragment">`make_terminal()` should be called with a `std::move`d
+value to force a value to be stored.</p>
 
 ----
 
@@ -1212,7 +1222,7 @@ Defines a binary operator as a set of three member function templates, each
 with different qualifiers (e.g. `operator/()`).
 
 <p class="fragment">The resulting operators only match `Expressions` on the
-left (since they are member functions), but match anything on the left.</p>
+left (since they are member functions), but match anything on the right.</p>
 
 ```cpp
 auto expr = yap::make_terminal<my_expr>(1.0);
