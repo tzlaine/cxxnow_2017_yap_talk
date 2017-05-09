@@ -1541,6 +1541,7 @@ struct matrix
         auto expr_N = yap::transform(expr_N_minus_1, transform_N_minus_1{});
 
         *this = yap::evaluate_as<matrix>(expr_N);
+        return *this;
     }
 };
 ```
